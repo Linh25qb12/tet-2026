@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gửi Công Chúa Của Anh</title>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #3e0000 0%, #0f0000 100%);
+            font-family: 'Nunito', sans-serif;
+            touch-action: none;
+        }
+
+        #ui-layer {
+            position: fixed; top: 20px; left: 0; width: 100%;
+            text-align: center; pointer-events: none; z-index: 10;
+            color: #FFD700; font-size: 24px; 
+            text-shadow: 0 0 5px #ff0000;
+            font-family: 'Dancing Script', cursive;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; }
+
+        /* --- TẤM THIỆP --- */
+        #card-modal {
+            position: fixed;
+            top: 50%; left: 50%;
+            width: 85%; max-width: 450px;
+            transform: translate(-50%, -50%) scale(0.8);
+            opacity: 0;
+            visibility: hidden;
+            background: #2b0000; 
+            border: 2px solid #FFD700;
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            color: #FFD700;
+            transition: all 0.5s ease-out;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            max-height: 85vh; /* Giới hạn chiều cao */
+            overflow-y: auto; /* Cho phép cuộn nếu chữ dài */
+        }
+
+        #card-modal.show { visibility: visible; opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        
+        #card-modal h1 { 
+            font-family: 'Dancing Script', cursive; margin: 0 0 5px 0; 
+            font-size: 2.5em; text-shadow: 1px 1px 0 #000; 
+        }
+        
+        #card-modal p.msg { 
+            font-size: 1.1em; 
+            line-height: 1.5; 
+            color: #ffecb3; 
+            margin-bottom: 15px; 
+            text-align: justify; /* Canh đều 2 bên cho đẹp */
+            text-align-last: center;
+        }
+        
+        .icons-row { 
+            font-size: 35px; margin: 10px 0; 
+            display: flex; justify-content: center; gap: 10px;
+        }
+        
+        .heart-beat { color: #ff3333; animation: beat 1.5s infinite; }
+        @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+        /* --- PHẦN QR --- */
+        .qr-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px dashed rgba(255, 215, 0, 0.3);
+        }
+        .qr-title { font-weight: bold; margin-bottom: 8px; color: #FFD700; font-size: 0.9em;}
+        
+        .qr-box {
+            width: 140px; height: 140px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 5px;
+            border-radius: 8px;
+            border: 2px solid #FFD700;
+        }
+        .qr-box img { width: 100%; height: 100%; object-fit: contain; }
+        .qr-note { font-size: 0.8em; color: #aaa; margin-top: 5px; font-style: italic; }
+
+        .btn-replay {
+            background: #FFD700; color: #500000; border: none;
+            padding: 10px 30px; border-radius: 20px;
+            font-size: 1em; font-weight: bold; cursor: pointer;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">Thu thập lì xì: <span id="score">0</span>/5</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="card-modal">
+        <h1>Happy New Year</h1>
+        
+        <div class="icons-row"> 
+            <span class="heart-beat">❤️</span>
+            <span>👸</span>
+        </div>
+
+        <p class="msg">
+            Chúc Embie của anh một năm mới thật rực rỡ! ✨✨✨<br><br>
+            Mong bé năm nay luôn xinh đẹp, cười thật nhiều, công việc suôn sẻ và đạt được hết ước muốn trong cuộc sống. Cảm ơn bé vì đã luôn cùng trải qua đủ cung bậc cảm xúc trong năm qua.<br><br>
+            Mong rằng trong năm này, chúng mình sẽ cùng nhau vui vẻ hơn nữa, bước đi cùng nhau lâu thật lâu.
+        </p>
+
+        <div class="qr-section">
+            <div class="qr-title">🧧 Ting ting đầu năm cho em 🧧</div>
+            <div class="qr-box">
+                <img src="https://res.cloudinary.com/greenwich-university/image/upload/5a7895b4-644c-4599-9a41-a12b29cc113b_l65e7e.jpg" alt="Mã QR">
+            </div>
+            <div class="qr-note">(Quét mã để nhận tấm lòng của anh ạ)</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        
+        let W, H;
+        function resize() {
+            W = canvas.width = window.innerWidth;
+            H = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let score = 0; const target = 5; let gameActive = true;
+        let particles = []; let envelopes = [];
+        let sparkles = [];
+
+        // Class Lì xì (Giữ nguyên cấu hình to và chậm)
+        class Envelope {
+            constructor() {
+                this.w = 90; this.h = 130;
+                this.x = Math.random() * (W - this.w); this.y = H + 10;
+                this.speed = 1.5 + Math.random(); 
+                this.angle = 0; this.sway = Math.random() * 0.05;
+                this.markedForDeletion = false;
+            }
+            update() {
+                this.y -= this.speed; this.angle += this.sway;
+                this.x += Math.sin(this.angle) * 1.5;
+                if (this.y < -150) this.markedForDeletion = true;
+            }
+            draw() {
+                ctx.translate(this.x, this.y);
+                ctx.fillStyle = '#D90429'; ctx.fillRect(0, 0, this.w, this.h);
+                ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 3; ctx.strokeRect(0, 0, this.w, this.h);
+                ctx.beginPath(); ctx.moveTo(0, 30); ctx.quadraticCurveTo(this.w/2, 60, this.w, 30); ctx.stroke();
+                ctx.fillStyle = '#FFD700'; ctx.font = 'bold 24px Arial'; 
+                ctx.textAlign = 'center'; ctx.fillText('Tết', this.w/2, this.h/2 + 10);
+                ctx.translate(-this.x, -this.y);
+            }
+            isClicked(mx, my) {
+                return (mx >= this.x && mx <= this.x + this.w && my >= this.y && my <= this.y + this.h);
+            }
+        }
+
+        // Class Hạt bụi vàng (Hiệu ứng nhẹ khi thắng)
+        class Sparkle {
+            constructor() {
+                this.x = Math.random() * W;
+                this.y = H + Math.random() * 100;
+                this.speed = Math.random() * 1 + 0.5;
+                this.size = Math.random() * 2 + 1;
+                this.opacity = Math.random();
+            }
+            update() {
+                this.y -= this.speed;
+                if (this.y < -10) this.y = H + 10;
+            }
+            draw() {
+                ctx.fillStyle = `rgba(255, 215, 0, ${this.opacity})`;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        // Class Pháo hoa nổ (Chỉ dùng khi click)
+        class FireworkPart {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                const a = Math.random() * Math.PI * 2; const v = Math.random() * 3 + 1;
+                this.vx = Math.cos(a) * v; this.vy = Math.sin(a) * v;
+                this.life = 1; this.color = `hsl(${Math.random()*60}, 100%, 60%)`;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= 0.03; this.vy += 0.05; }
+            draw() {
+                ctx.globalAlpha = this.life; ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.arc(this.x, this.y, 2, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+            }
+        }
+
+        function animate() {
+            ctx.fillStyle = '#0f0505'; ctx.fillRect(0, 0, W, H);
+            const gradient = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, W);
+            gradient.addColorStop(0, '#3e0000'); gradient.addColorStop(1, '#0f0000');
+            ctx.fillStyle = gradient; ctx.fillRect(0, 0, W, H);
+
+            if (gameActive) {
+                if (Math.random() < 0.02 && envelopes.length < 5) envelopes.push(new Envelope());
+                envelopes.forEach((e, i) => { e.update(); e.draw(); if (e.markedForDeletion) envelopes.splice(i, 1); });
+                particles.forEach((p, i) => { p.update(); p.draw(); if (p.life <= 0) particles.splice(i, 1); });
+            } else {
+                if (sparkles.length < 50) sparkles.push(new Sparkle());
+                sparkles.forEach(s => { s.update(); s.draw(); });
+            }
+            requestAnimationFrame(animate);
+        }
+
+        function handleInput(x, y) {
+            if (!gameActive) return;
+            for (let i = envelopes.length - 1; i >= 0; i--) {
+                if (envelopes[i].isClicked(x, y)) {
+                    for(let k=0; k<15; k++) particles.push(new FireworkPart(x, y));
+                    envelopes.splice(i, 1); score++;
+                    document.getElementById('score').innerText = score;
+                    if (score >= target) showWish();
+                    return;
+                }
+            }
+        }
+
+        window.addEventListener('mousedown', e => handleInput(e.clientX, e.clientY));
+        window.addEventListener('touchstart', e => { e.preventDefault(); handleInput(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+
+        function showWish() {
+            gameActive = false; envelopes = []; particles = [];
+            document.getElementById('ui-layer').style.display = 'none';
+            document.getElementById('card-modal').classList.add('show');
+            for(let i=0; i<30; i++) sparkles.push(new Sparkle());
+        }
+
+        animate();
+    </script>
+</body>
+</html>
